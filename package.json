@@ -1,0 +1,11 @@
+{
+  "name": "hitesh-backend",
+  "version": "1.0.0",
+  "description": "This is a Backend Project ",
+  "main": "index.js",
+   "type": "module",
+  "scripts": {
+  },
+  "author": "Aditya Sharma",
+  "license": "ISC"
+}
