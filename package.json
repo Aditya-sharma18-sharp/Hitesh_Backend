@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "This is a Backend Project ",
   "main": "index.js",
-   "type": "module",
-  "scripts": {
-  },
+  "type": "module",
+  "scripts": {},
   "author": "Aditya Sharma",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
 }
