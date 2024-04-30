@@ -1,14 +1,12 @@
   const dotenv  = require('dotenv').config({path:'./.env'});
-  const express = require('express');
-  const app = express();
   const connectDB = require('./db/index.js');
- 
+  const app = require('./app.js'); 
  connectDB().then(()=>{
-    app.listen(process.env.PORT || 8000 ,()=>{
-        console.log("app listening on port" + process.env.port);
+  const port = process.env.PORT || 8000;
+    app.listen(port,()=>{
+        console.log("app listening on port" + port);
     })
   }).catch(err => {
     console.log("Mongo db connection failed !!!", err)
-  throw err;
-});
+  throw err;});
  
