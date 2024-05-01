@@ -6,3 +6,5 @@ class ApiResponse {
         this.status = statusCode < 400 ? "Success" : "Fail" ;
     }
 }
+
+module.exports = ApiResponse;

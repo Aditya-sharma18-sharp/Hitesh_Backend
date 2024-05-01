@@ -1,5 +1,6 @@
+ 
  const asyncHandler = (fn) => async(req ,res ,next) => {
-    try{
+    try{  
       await fn(req,res,next);
     }
     catch(err){
@@ -11,7 +12,6 @@
         })
     };
  };
-
 //  const asyncHandler2 = (fn)=> {
 //   (req ,res ,next)=> {
 //     Promise.resolve(fn(req ,res ,next)).reject(err=> next(err))
