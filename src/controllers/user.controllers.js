@@ -266,13 +266,13 @@ const { response } = require('express');
    });
 
   const getUserChannelProfile =asyncHandler( async (req ,res)=>{
-     const { userName } = req.params;
-     if(!userName ) throw new ApiError(404 , "username is missing");
+     const { username } = req.params;
+     if(!username ) throw new ApiError(404 , "username is missing");
      
        const  Channel = User.aggregate([
         {
           $match: {
-                userName: userName?.toLowerCase()
+                userName: username?.toLowerCase()
           }
       },
       {
