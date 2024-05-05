@@ -5,6 +5,7 @@
  const uploadOnCloudinary = require('../utils/cloudinary.js');
  const ApiResponse = require('../utils/apiresponse.js');
  const JWT = require('jsonwebtoken');
+const { response } = require('express');
 
 
   const generateAccessAndRefreshTokensAndAddRefreshTokenToUser = async(userId) =>{
@@ -37,14 +38,14 @@
       }
       
       // Handle file uploads
-      const avatarLocalPath = req.files?.avatar[0]?.path;
+      const avtarImageLocalPath = req.files?.avatar[0]?.path;
       const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
-      if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is required");
+      if (!avtarImageLocalPath) {
+        throw new ApiError(400, "Avatar  file is required");
       }
        
       // Upload files to cloudinary
-      const avatarImage = await uploadOnCloudinary(avatarLocalPath);
+      const avatarImage = await uploadOnCloudinary(avtarImageLocalPath);
       const coverImage = await uploadOnCloudinary(coverImageLocalPath);
       
       // Create new user
@@ -166,8 +167,226 @@
       new ApiError(404,err.message)
     }
   }
+  
+  const ChangeCurrentPassword = async( req ,res)=> {
+    try {
+      const {oldPassword , newpassword , confirmpassword } = req.body;
+      if(!(oldPassword && newpassword)) throw new ApiError(404 , "Credentials are not provided by user");
+      if(confirmpassword  !== newpassword ) throw new ApiError(404 , "new password is not matched with confirm password");
+     
+      const user = await User.findById(req.user?._id)
+      if(!user) throw new ApiError(404 , "Something went wrong try again");
+      
+      const checkoldpassword = await user.isPasswordCorrect(oldPassword);
+      if(!checkoldpassword) throw new ApiError(404 , "User credentials Are Not Correct");
+         
+      user.password = newpassword;
+      const changePassword = await user.save({validateBeforeSave: false});
 
-   module.exports = { registerUser  , loginUser ,logoutUser ,refreshAccessToken};
+   return res.status(200).json(
+    new ApiResponse(
+      200 , 
+      {} ,
+      "Password updated successfully"
+    )
+   )
+    } catch (err) {
+      new ApiError(404 , err.mesage);
+    }
+   }
+
+   const getCurrentUser = asyncHandler (async( req ,res)=> {
+    return res.status(200)
+    .json(new ApiResponse(200 , 
+    req.user,
+     "Successfully get user information"));
+   })
+
+  const updateAccountDetails = asyncHandler(async (req ,res )=> {
+    const {fullName , email , userName } = req.body;
+    if(!(fullName || email || userName)) throw new ApiError(404 , "Data provided by user is not Sufficient to update user");
+     
+    const user = await User.findByIdAndUpdate(req.user?._id,{
+      set$:{
+        fullName,
+        email ,userName
+      }, 
+     } , {new :true}).select("-password");
+
+     if(!user) throw new ApiError(404 , "User not found by server");
+     user.save({validateBeforeSave: false});
+
+     return response.status(200)
+     .json(new ApiResponse(
+      200 , 
+      user,
+      "User Updated successfully"
+      )) 
+  });
+ 
+  const updateUserAvatar = asyncHandler( async (req ,res)=> {
+
+       const coverImageLocalPath = req.file?.path;
+       if(!coverImageLocalPath) throw new ApiError(404 , "Avtar file is missing");
+
+       const avtarPath  = await uploadOnCloudinary(coverImageLocalPath);
+      if(!avtarPath) throw new ApiError(404 , "Avtar path is not uploded on cloudinary");
+
+      const user = await User.findByIdAndUpdate(req.user?._id , {
+        $set:{
+          avatar: avtarPath.url
+        }
+      },{new :true }).select('-password');
+      user.save({validateBeforeSave: false});
+      if(!user)  throw new ApiError(404 , "file is not updated by server");
+
+      return res.status(200).json(new ApiResponse(200 ,
+      user,
+    "User avtar updated successfully"));
+    })
+    
+  const updateUsercoverImage = asyncHandler( async (req ,res)=> {
+       const coverImageLocalPath = req.file?.path;
+       if(!coverImageLocalPath) throw new ApiError(404 , " coverImage file is missing");
+
+       const coverImagePath  = await uploadOnCloudinary(coverImageLocalPath);
+      if(!coverImagePath) throw new ApiError(404 , "coverImage path is not uploded on cloudinary");
+
+      const user = await User.findByIdAndUpdate(req.user?._id , {
+        $set:{
+          coverImage: coverImagePath.url
+        }
+      },{new :true }).select('-password');
+      user.save({validateBeforeSave: false});
+      if(!user)  throw new ApiError(404 , "file is not updated by server");
+
+      return res.status(200).json(new ApiResponse(200 ,
+      user,
+    "User coverImage updated successfully"));
+   });
+
+  const getUserChannelProfile =asyncHandler( async (req ,res)=>{
+     const { userName } = req.params;
+     if(!userName ) throw new ApiError(404 , "username is missing");
+     
+       const  Channel = User.aggregate([
+        {
+          $match: {
+                userName: userName?.toLowerCase()
+          }
+      },
+      {
+        $lookup:{
+          from: "subscriptions",
+          localField: "_id",
+          foreignField:"channel",
+          as: "subscribers"
+        }
+      },
+      {
+          $lookup: {
+            from: "subscriptions",
+            localField: "_id",
+            foreignField:'subscriber',
+            as: "subscribedTo"
+          }
+      },
+      {
+        $addFields:{
+          subscribersCount:{
+            $size: "$subscribers"
+          },
+          SubscribedCount : {
+            $size: "$subscribedTo"
+          },
+          isSubscribed: {
+            if:{$in :[req.user?._id , "$subscribers.subscriber"]},
+            Then: true,
+            else: false
+          }
+         }
+        },
+        {
+          $project:{
+            fullName: 1,
+            avatar: 1,
+            userName: 1,
+            email : 1,
+            subscribersCount: 1,
+            isSubscribed :1,
+            SubscribedCount: 1,
+            coverImage: 1 
+
+          }
+        }
+      ]); // end of Channel 
+
+      if(!Channel?.length){
+        throw new ApiError(404 ,"Channel does not exist")
+      }
+      return response(200).json(new ApiResponse(
+        200 , Channel[0], "User channel fetched successfully")
+      )
+     });
+       
+     const getWatchHistory = asyncHandler (async (req , res) => {
+       const user = await User.aggregate([
+        {
+          $match:{
+            _id: new mongoose.Types.ObjectId(req.params._id)
+          }
+        },
+        {
+          $lookup:{
+            from: "videos",
+            localField: "watchHistory",
+            foreignField: "_id",
+            as:"watchHistory",
+            pipeline: [
+              {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                 pipeline: [ 
+                   {
+                     $project: {
+                      fullName: 1 ,
+                      userName: 1 ,
+                      avatar : 1,
+                     }
+                   }
+                 ]
+              }
+            },
+            {
+            $addFields:{
+              owner: {
+                $first: "owner"
+              }
+            }
+            }
+          ]            
+          }
+        }
+       ])
+       if(!user) throw new ApiError(404 , "user not found");
+  
+        return response.status(200).json(
+          new ApiResponse(200 , 
+            user[0].watchHistory,
+            "Watch History is fetched Successfully"
+          )
+        )
+     });
+     
+   module.exports = {
+     registerUser, loginUser ,logoutUser 
+    ,refreshAccessToken , ChangeCurrentPassword  
+   , getCurrentUser , updateAccountDetails,
+    updateUserAvatar , updateUsercoverImage ,
+    getWatchHistory , getUserChannelProfile};
    
    
 
@@ -194,14 +413,14 @@
    //  };
    
    //  console.log("Run run req.files");
-   //   const avatarLocalPath = req.files?.avatar[0]?.path
+   //   const coverImageLocalPath = req.files?.avatar[0]?.path
    //   const coverImageLocalPath = req.files?.coverImage?.[0]?.path
-   //   console.log(avatarLocalPath);
    //   console.log(coverImageLocalPath);
-   //   if(!avatarLocalPath){
+   //   console.log(coverImageLocalPath);
+   //   if(!coverImageLocalPath){
    //     throw new ApiError(400 , "Avatar file is required");
    //   }
-   //  const avatarImage = await uploadOnCloudinary(avatarLocalPath);
+   //  const avatarImage = await uploadOnCloudinary(coverImageLocalPath);
    //  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
     
    //  if(!avatarImage) throw new ApiError(400 , "Avatar file is required");
